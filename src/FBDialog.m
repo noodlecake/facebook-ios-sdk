@@ -144,16 +144,7 @@ params   = _params;
 }
 
 - (CGAffineTransform)transformForOrientation {
-    UIInterfaceOrientation orientation = [UIApplication sharedApplication].statusBarOrientation;
-    if (orientation == UIInterfaceOrientationLandscapeLeft) {
-        return CGAffineTransformMakeRotation(M_PI*1.5);
-    } else if (orientation == UIInterfaceOrientationLandscapeRight) {
-        return CGAffineTransformMakeRotation(M_PI/2);
-    } else if (orientation == UIInterfaceOrientationPortraitUpsideDown) {
-        return CGAffineTransformMakeRotation(-M_PI);
-    } else {
-        return CGAffineTransformIdentity;
-    }
+    return CGAffineTransformIdentity;
 }
 
 - (void)sizeToFitOrientation:(BOOL)transform {
@@ -171,16 +162,23 @@ params   = _params;
         // On the iPad the dialog's dimensions should only be 60% of the screen's
         scale_factor = 0.6f;
     }
-    
+        
+    _orientation = [UIApplication sharedApplication].statusBarOrientation;
+    if (frame.size.height > frame.size.width && UIInterfaceOrientationIsLandscape(_orientation)) {
+        
+        float tmp = frame.size.height;
+        frame.size.height = frame.size.width;
+        frame.size.width = tmp;
+
+        tmp = center.y;
+        center.y = center.x;
+        center.x = tmp;
+    }
+
     CGFloat width = floor(scale_factor * frame.size.width) - kPadding * 2;
     CGFloat height = floor(scale_factor * frame.size.height) - kPadding * 2;
     
-    _orientation = [UIApplication sharedApplication].statusBarOrientation;
-    if (UIInterfaceOrientationIsLandscape(_orientation)) {
-        self.frame = CGRectMake(kPadding, kPadding, height, width);
-    } else {
-        self.frame = CGRectMake(kPadding, kPadding, width, height);
-    }
+    self.frame = CGRectMake(kPadding, kPadding, width, height);
     self.center = center;
     
     if (transform) {
@@ -613,7 +611,7 @@ params   = _params;
 
 - (void)show {
     [self load];
-    [self sizeToFitOrientation:NO];
+    [self sizeToFitOrientation:YES];
     
     CGFloat innerWidth = self.frame.size.width - (kBorderWidth+1)*2;
     [_closeButton sizeToFit];
