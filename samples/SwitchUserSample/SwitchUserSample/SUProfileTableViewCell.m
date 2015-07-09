@@ -1,21 +1,24 @@
-/*
- * Copyright 2010-present Facebook.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- 
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright (c) 2014-present, Facebook, Inc. All rights reserved.
+//
+// You are hereby granted a non-exclusive, worldwide, royalty-free license to use,
+// copy, modify, and distribute this software in source code or binary form for use
+// in connection with the web services and APIs provided by Facebook.
+//
+// As with any software that integrates with the Facebook platform, your use of
+// this software is subject to the Facebook Developer Principles and Policies
+// [http://developers.facebook.com/policy/]. This copyright notice shall be
+// included in all copies or substantial portions of the software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+// FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+// COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+// IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+// CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #import "SUProfileTableViewCell.h"
-#import <FacebookSDK/FacebookSDK.h>
+
+#import <FBSDKCoreKit/FBSDKCoreKit.h>
 
 static const CGFloat leftMargin = 10;
 static const CGFloat topMargin = 5;
@@ -25,35 +28,25 @@ static const CGFloat pictureHeight = 50;
 
 @interface SUProfileTableViewCell ()
 
-// FBSample logic
-// This view is used to display the profile pictures within the list of user accounts
-@property (strong, nonatomic) FBProfilePictureView *profilePic;
-
-- (void)initializeSubViews;
+@property (weak, nonatomic) FBSDKProfilePictureView *profilePic;
 
 @end
 
 @implementation SUProfileTableViewCell
 
-@synthesize profilePic = _profilePic;
-
 #pragma mark - Lifecycle
 
-- (void)dealloc {
-    [_profilePic removeFromSuperview];
-}
-
-- (id)init {
+- (instancetype)init {
     self = [super init];
     if (self) {
         [self initializeSubViews];
     }
-    
+
     return self;
 }
 
-- (id)initWithStyle:(UITableViewCellStyle)style
-    reuseIdentifier:(NSString *)reuseIdentifier {
+- (instancetype)initWithStyle:(UITableViewCellStyle)style
+              reuseIdentifier:(NSString *)reuseIdentifier {
     self = [super initWithStyle:style reuseIdentifier:reuseIdentifier];
     if (self) {
         [self initializeSubViews];
@@ -61,55 +54,51 @@ static const CGFloat pictureHeight = 50;
     return self;
 }
 
-- (void)setSelected:(BOOL)selected animated:(BOOL)animated
+- (void)awakeFromNib
 {
-    [super setSelected:selected animated:animated];
-
-    // Configure the view for the selected state
+    [super awakeFromNib];
+    [self initializeSubViews];
 }
 
 #pragma mark -
 
-- (void)initializeSubViews {   
-    FBProfilePictureView *profilePic = [[FBProfilePictureView alloc] 
-        initWithFrame:CGRectMake(
-            leftMargin,
-            topMargin,
-            pictureWidth,
-            pictureHeight)];
+- (void)initializeSubViews {
+    FBSDKProfilePictureView *profilePic = [[FBSDKProfilePictureView alloc]
+                                           initWithFrame:CGRectMake(
+                                                                    leftMargin,
+                                                                    topMargin,
+                                                                    pictureWidth,
+                                                                    pictureHeight)];
     [self addSubview:profilePic];
     self.profilePic = profilePic;
-    
+
     self.clipsToBounds = YES;
-    self.autoresizesSubviews = YES;                                                                
+    self.autoresizesSubviews = YES;
 }
 
-- (void) layoutSubviews {
+- (void)layoutSubviews {
     [super layoutSubviews];
 
     CGSize size = self.bounds.size;
-    
+
     self.textLabel.frame = CGRectMake(
-        leftMargin * 2 + pictureWidth, 
-        topMargin,
-        size.width - leftMargin - pictureWidth - rightMargin, 
-        size.height - topMargin);
+                                      leftMargin * 2 + pictureWidth,
+                                      topMargin,
+                                      size.width - leftMargin - pictureWidth - rightMargin,
+                                      size.height - topMargin);
 }
 
 #pragma mark - Properties
 
-- (NSString*)userID {
+- (NSString *)userID {
     return self.profilePic.profileID;
 }
 
 - (void)setUserID:(NSString *)userID {
-    // FBSample logic
-    // Setting the profileID property of the profile picture view causes the view to fetch and display
-    // the profile picture for the given user
     self.profilePic.profileID = userID;
 }
 
-- (NSString*)userName {
+- (NSString *)userName {
     return self.textLabel.text;
 }
 

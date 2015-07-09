@@ -1,34 +1,42 @@
-/*
- * Copyright 2010-present Facebook.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- * 
- *    http://www.apache.org/licenses/LICENSE-2.0
- 
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright (c) 2014-present, Facebook, Inc. All rights reserved.
+//
+// You are hereby granted a non-exclusive, worldwide, royalty-free license to use,
+// copy, modify, and distribute this software in source code or binary form for use
+// in connection with the web services and APIs provided by Facebook.
+//
+// As with any software that integrates with the Facebook platform, your use of
+// this software is subject to the Facebook Developer Principles and Policies
+// [http://developers.facebook.com/policy/]. This copyright notice shall be
+// included in all copies or substantial portions of the software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+// FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+// COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+// IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+// CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #import "RPSGameViewController.h"
-#import "RPSAppDelegate.h"
-#import <FacebookSDK/FacebookSDK.h>
-#import <QuartzCore/QuartzCore.h>
-#import "OGProtocols.h"
-#import "RPSFriendsViewController.h"
+
 #import <AVFoundation/AVFoundation.h>
+#import <QuartzCore/QuartzCore.h>
 
-typedef enum {
-    RPSCallNone = -1, RPSCallRock = 0, RPSCallPaper = 1, RPSCallScissors = 2 // enum is also used to index arrays
-} RPSCall;
+#import <FBSDKCoreKit/FBSDKCoreKit.h>
 
-typedef enum {
-    RPSResultWin = 0, RPSResultLoss = 1, RPSResultTie = 2
-} RPSResult;
+#import <FBSDKLoginKit/FBSDKLoginKit.h>
+
+#import <FBSDKShareKit/FBSDKShareKit.h>
+
+#import "RPSAppDelegate.h"
+#import "RPSCommonObjects.h"
+#import "RPSFriendsViewController.h"
+
+static NSString *callType[] = {
+    @"unknown",
+    @"rock",
+    @"paper",
+    @"scissors"
+};
 
 // Some constants for creating Open Graph objects.
 static NSString *kResults[] = {
@@ -44,11 +52,9 @@ static NSString *photoURLs[] = {
     nil
 };
 
-extern NSString *builtInOpenGraphObjects[3];
-
 typedef void (^RPSBlock)(void);
 
-@interface RPSGameViewController () <UIActionSheetDelegate, UIAlertViewDelegate>
+@interface RPSGameViewController () <UIActionSheetDelegate, UIAlertViewDelegate, FBSDKSharingDelegate, FBSDKAppInviteDialogDelegate>
 @end
 
 @implementation RPSGameViewController {
@@ -60,16 +66,18 @@ typedef void (^RPSBlock)(void);
     UIImage *_imagesToPublish[3];
     RPSBlock _alertOkHandler;
     int _wins, _losses, _ties;
+    NSDate *_lastAnimationStartTime;
+    NSMutableSet *_activeConnections;
 }
 
-- (id)initWithNibName:(NSString *)nibNameOrNil bundle:(NSBundle *)nibBundleOrNil {
+- (instancetype)initWithNibName:(NSString *)nibNameOrNil bundle:(NSBundle *)nibBundleOrNil {
     self = [super initWithNibName:nibNameOrNil bundle:nibBundleOrNil];
     if (self) {
         self.title = NSLocalizedString(@"You Rock!", @"You Rock!");
         self.tabBarItem.image = [UIImage imageNamed:@"first"];
-               
+
         BOOL ipad = ([[UIDevice currentDevice] userInterfaceIdiom] == UIUserInterfaceIdiomPad);
-        
+
         NSString *rockRight     = ipad ? @"right-rock-128.png"     : @"right-rock-88.png";
         NSString *paperRight    = ipad ? @"right-paper-128.png"    : @"right-paper-88.png";
         NSString *scissorsRight = ipad ? @"right-scissors-128.png" : @"right-scissors-88.png";
@@ -77,29 +85,34 @@ typedef void (^RPSBlock)(void);
         NSString *rockLeft     = ipad ? @"left-rock-128.png"     : @"left-rock-88.png";
         NSString *paperLeft    = ipad ? @"left-paper-128.png"    : @"left-paper-88.png";
         NSString *scissorsLeft = ipad ? @"left-scissors-128.png" : @"left-scissors-88.png";
-        
+
         _rightImages[RPSCallRock] = [UIImage imageNamed:rockRight];
         _rightImages[RPSCallPaper] = [UIImage imageNamed:paperRight];
         _rightImages[RPSCallScissors] = [UIImage imageNamed:scissorsRight];
-        
+
         _leftImages[RPSCallRock] = [UIImage imageNamed:rockLeft];
         _leftImages[RPSCallPaper] = [UIImage imageNamed:paperLeft];
         _leftImages[RPSCallScissors] = [UIImage imageNamed:scissorsLeft];
-        
+
         _imagesToPublish[RPSCallRock] = [UIImage imageNamed:@"left-rock-128.png"];
         _imagesToPublish[RPSCallPaper] = [UIImage imageNamed:@"left-paper-128.png"];
         _imagesToPublish[RPSCallScissors] = [UIImage imageNamed:@"left-scissors-128.png"];
-        
+
         _lastPlayerCall = _lastComputerCall = RPSCallNone;
         _wins = _losses = _ties = 0;
         _alertOkHandler = nil;
         _needsInitialAnimation = YES;
         _interestedInImplicitShare = YES;
+
+        _activeConnections = [[NSMutableSet alloc] init];
+
     }
     return self;
 }
 
 - (void)viewDidLoad {
+    [super viewDidLoad];
+
     UIColor *fontColor = self.rockLabel.textColor;
     [self.rockButton.layer setCornerRadius:8.0];
     [self.rockButton.layer setBorderWidth:4.0];
@@ -112,36 +125,36 @@ typedef void (^RPSBlock)(void);
     [self.paperButton.layer setBorderColor:fontColor.CGColor];
     self.paperButton.clipsToBounds = YES;
     self.paperButton.tag = RPSCallPaper;
-    
+
     [self.scissorsButton.layer setCornerRadius:8.0];
     [self.scissorsButton.layer setBorderWidth:4.0];
     [self.scissorsButton.layer setBorderColor:fontColor.CGColor];
     self.scissorsButton.clipsToBounds = YES;
     self.scissorsButton.tag = RPSCallScissors;
-    
+
     [self.againButton.layer setCornerRadius:8.0];
     [self.againButton.layer setBorderWidth:4.0];
     [self.againButton.layer setBorderColor:fontColor.CGColor];
-    
+
     [self.computerHand.layer setCornerRadius:8.0];
     self.computerHand.layer.shadowColor = [UIColor blackColor].CGColor;
     self.computerHand.layer.shadowOpacity = 0.5;
     self.computerHand.layer.shadowRadius = 8;
     self.computerHand.layer.shadowOffset = CGSizeMake(12.0f, 12.0f);
     self.computerHand.clipsToBounds = YES;
-    
+
     [self.playerHand.layer setCornerRadius:8.0];
     self.playerHand.layer.shadowColor = [UIColor blackColor].CGColor;
     self.playerHand.layer.shadowOpacity = 0.5;
     self.playerHand.layer.shadowRadius = 8;
     self.playerHand.layer.shadowOffset = CGSizeMake(12.0f, 12.0f);
     self.playerHand.clipsToBounds = YES;
-    
+
     [self.facebookButton.layer setCornerRadius:8.0];
     [self.facebookButton.layer setBorderWidth:4.0];
     [self.facebookButton.layer setBorderColor:fontColor.CGColor];
     self.facebookButton.clipsToBounds = YES;
-        
+
     [self updateScoreLabel];
     [self resetField];
 }
@@ -156,7 +169,7 @@ typedef void (^RPSBlock)(void);
     if (_needsInitialAnimation) {
         // get things rolling
         _needsInitialAnimation = NO;
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, .5 * NSEC_PER_SEC), dispatch_get_current_queue(), ^{
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, .5 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
             [self animateField];
         });
     }
@@ -202,11 +215,11 @@ typedef void (^RPSBlock)(void);
     self.computerHand.hidden =
     self.playerHand.hidden =
     self.againButton.hidden = YES;
-    
+
     self.rockButton.enabled =
     self.paperButton.enabled =
     self.scissorsButton.enabled = NO;
-    
+
     self.resultLabel.text = @"";
 }
 
@@ -215,39 +228,40 @@ typedef void (^RPSBlock)(void);
     self.rockButton.hidden =
     self.paperButton.hidden =
     self.scissorsButton.hidden = YES;
-    
+
     self.playerHand.hidden =
     self.againButton.hidden = NO;
 }
 
 - (void)animateField {
     // rock
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, .5 * NSEC_PER_SEC), dispatch_get_current_queue(), ^{
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, .5 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
         self.rockLabel.hidden = NO;
         self.rockButton.hidden = NO;
-        
+
         // paper
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 1 * NSEC_PER_SEC), dispatch_get_current_queue(), ^{
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 1 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
             self.paperLabel.hidden = NO;
             self.paperButton.hidden = NO;
-            
+
             // scissors
-            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 1 * NSEC_PER_SEC), dispatch_get_current_queue(), ^{
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 1 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
                 self.scissorsLabel.hidden = NO;
                 self.scissorsButton.hidden = NO;
-                
+
                 // shoot!
-                dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 1 * NSEC_PER_SEC), dispatch_get_current_queue(), ^{
+                dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 1 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
                     self.shootLabel.hidden =
                     self.computerHand.hidden = NO;
                     self.rockButton.enabled =
                     self.paperButton.enabled =
                     self.scissorsButton.enabled = YES;
-                    
+
                     self.computerHand.animationImages = @[ _rightImages[RPSCallRock], _rightImages[RPSCallPaper], _rightImages[RPSCallScissors]];
                     self.computerHand.animationDuration = .4;
                     self.computerHand.animationRepeatCount = 0;
                     [self.computerHand startAnimating];
+                    _lastAnimationStartTime = [NSDate date];
                 });
             });
         });
@@ -269,34 +283,43 @@ typedef void (^RPSBlock)(void);
 }
 
 - (void)callGame:(RPSCall)playerCall {
+    NSTimeInterval timeTaken = fabs([_lastAnimationStartTime timeIntervalSinceNow]);
+    [self logTimeTaken:timeTaken];
+    [self logCurrentPlayerCall:playerCall lastPlayerCall:_lastPlayerCall lastComputerCall:_lastComputerCall];
+
     // stop animating and identify each opponent's call
     [self.computerHand stopAnimating];
     _lastPlayerCall = playerCall;
     _lastComputerCall = [self callViaRandom];
     self.computerHand.image = _rightImages[_lastComputerCall];
-    
+
     // update UI and counts based on result
     RPSResult result = [self resultForPlayerCall:_lastPlayerCall
-                              computerCall:_lastComputerCall];
+                                    computerCall:_lastComputerCall];
+
     switch (result) {
         case RPSResultWin:
             _wins++;
             self.resultLabel.text = @"Win!";
+            [self logPlayerCall:playerCall result:RPSResultWin timeTaken:timeTaken];
             break;
         case RPSResultLoss:
             _losses++;
             self.resultLabel.text = @"Loss.";
+            [self logPlayerCall:playerCall result:RPSResultLoss timeTaken:timeTaken];
             break;
         case RPSResultTie:
             _ties++;
             self.resultLabel.text = @"Tie...";
+            [self logPlayerCall:playerCall result:RPSResultTie timeTaken:timeTaken];
             break;
     }
     [self updateScoreLabel];
 
-    if (FBSession.activeSession.isOpen && _interestedInImplicitShare) {
+    if (_interestedInImplicitShare) {
         [self publishResult];
     }
+
 }
 
 - (void)updateScoreLabel {
@@ -317,11 +340,16 @@ typedef void (^RPSBlock)(void);
 }
 
 - (IBAction)clickFacebookButton:(id)sender {
-    UIActionSheet *sheet = [[UIActionSheet alloc] initWithTitle:@"Facebook"
+    UIActionSheet *sheet = [[UIActionSheet alloc] initWithTitle:nil
                                                        delegate:self
-                                              cancelButtonTitle:@"Do Nothing"
+                                              cancelButtonTitle:@"Cancel"
                                          destructiveButtonTitle:nil
-                                              otherButtonTitles:@"Share on Facebook", @"See Friends", @"Check settings",  nil];
+                                              otherButtonTitles:@"Share on Facebook",
+                            @"Share on Messenger",
+                            @"Invite Friends",
+                            @"Friends' Activity",
+                            [FBSDKAccessToken currentAccessToken] ? @"Log out" : @"Log in",
+                            nil];
     // Show the sheet
     [sheet showInView:sender];
 }
@@ -337,29 +365,27 @@ typedef void (^RPSBlock)(void);
 
 - (void)actionSheet:(UIActionSheet *)actionSheet clickedButtonAtIndex:(NSInteger)buttonIndex {
     switch (buttonIndex) {
-        case 0: { // share
-            BOOL didDialog = NO;
-            if (self.hasPlayedAtLeastOnce) {
-                didDialog = [self shareGameActivity];
-            } else {
-                didDialog = [self shareGameLink];
-            }
-            if (!didDialog) {
-                [self alertWithMessage:
-                                    @"Upgrade the Facebook application on your device and "
-                                    @"get cool new sharing features for this application. "
-                                    @"What do you want to do?"
-                                    ok:@"Upgrade Now"
-                                cancel:@"Decide Later"
-                            completion:^{
-                                // launch itunes to get the Facebook application installed/upgraded
-                                [[UIApplication sharedApplication]
-                                 openURL:[NSURL URLWithString:@"itms-apps://itunes.com/apps/Facebook"]];
-                            }];
+        case 0: { // Share on Facebook
+            if (![self shareWith:[[FBSDKShareDialog alloc] init] content:[self getGameShareContent]]) {
+                [self displayInstallAppWithAppName:@"Facebook"];
             }
             break;
         }
-        case 1: { // friends
+        case 1: { // Share on Messenger
+            if (![self shareWith:[[FBSDKMessageDialog alloc] init] content:[self getGameShareContent]]) {
+                [self displayInstallAppWithAppName:@"Messenger"];
+            }
+            break;
+        }
+        case 2: { // Invite Friends"
+            // app link corresponds to rps-sample-applink-example://
+            FBSDKAppInviteContent *content = [[FBSDKAppInviteContent alloc] init];
+            content.appLinkURL = [NSURL URLWithString:@"https://fb.me/319673994858989"];
+            [FBSDKAppInviteDialog showWithContent:content
+                                         delegate:self];
+            break;
+        }
+        case 3: { // See Friends
             UIViewController *friends;
             if ([[UIDevice currentDevice] userInterfaceIdiom] == UIUserInterfaceIdiomPhone) {
                 friends = [[RPSFriendsViewController alloc] initWithNibName:@"RPSFriendsViewController_iPhone" bundle:nil];
@@ -370,10 +396,29 @@ typedef void (^RPSBlock)(void);
                                                  animated:YES];
             break;
         }
-        case 2: // settings
-            [self.navigationController pushViewController:[[FBUserSettingsViewController alloc] init]
-                                                 animated:YES];
-            break;
+        case 4: { // Login and logout
+            if ([FBSDKAccessToken currentAccessToken]) {
+                FBSDKLoginManager *login = [[FBSDKLoginManager alloc] init];
+                [login logOut];
+            } else {
+                // Try to login with permissions
+                [self loginAndRequestPermissionsWithSuccessHandler:nil
+                                         declinedOrCanceledHandler:^{
+                                             // If the user declined permissions tell them why we need permissions
+                                             // and ask for permissions again if they want to grant permissions.
+                                             [self alertDeclinedPublishActionsWithCompletion:^{
+                                                 [self loginAndRequestPermissionsWithSuccessHandler:nil
+                                                                          declinedOrCanceledHandler:nil
+                                                                                       errorHandler:^(NSError * error) {
+                                                                                           NSLog(@"Error: %@", error.description);
+                                                                                       }];
+                                             }];
+                                         }
+                                                      errorHandler:^(NSError * error) {
+                                                          NSLog(@"Error: %@", error.description);
+                                                      }];
+            }
+        }
     }
 }
 
@@ -381,58 +426,106 @@ typedef void (^RPSBlock)(void);
     return _lastPlayerCall != RPSCallNone && _lastComputerCall != RPSCallNone;
 }
 
-- (BOOL)shareGameActivity {
-    id<FBOpenGraphAction> action = (id<FBOpenGraphAction>)[FBGraphObject openGraphActionForPost];
-    action[@"gesture"] = builtInOpenGraphObjects[_lastPlayerCall]; // set action's gesture property
-    action[@"opposing_gesture"] = builtInOpenGraphObjects[_lastComputerCall]; // set action's opposing_gesture property
-    return nil !=
-    [FBDialogs presentShareDialogWithOpenGraphAction:action
-                                          actionType:@"fb_sample_rps:throw"
-                                 previewPropertyName:@"gesture"
-                                             handler:nil];
+- (id<FBSDKSharingContent>) getGameShareContent {
+    return self.hasPlayedAtLeastOnce ? [self getGameActivityShareContent] : [self getGameLinkShareContent];
 }
 
-- (BOOL)shareGameLink {
-    NSURL *urlToShare = [NSURL URLWithString:@"https://developers.facebook.com/ios"];
-    return nil !=
-    [FBDialogs presentShareDialogWithLink:urlToShare
-                                     name:@"Rock, Papers, Scissors Sample Application"
-                                  handler:nil];
+- (FBSDKShareOpenGraphContent *) getGameActivityShareContent {
+    // set action's gesture property
+    FBSDKShareOpenGraphAction *action = [FBSDKShareOpenGraphAction actionWithType:@"fb_sample_rps:throw"
+                                                                         objectID:builtInOpenGraphObjects[_lastPlayerCall]
+                                                                              key:@"fb_sample_rps:gesture"];
+    // set action's opposing_gesture property
+    [action setString:builtInOpenGraphObjects[_lastComputerCall] forKey:@"fb_sample_rps:opposing_gesture"];
+
+    FBSDKShareOpenGraphContent *content = [[FBSDKShareOpenGraphContent alloc] init];
+    content.action = action;
+    content.previewPropertyName = @"fb_sample_rps:gesture";
+    return content;
 }
 
-- (NSMutableDictionary<FBOpenGraphObject> *)createGameObject {
+- (BOOL)shareWith:(id<FBSDKSharingDialog>)dialog content:(id<FBSDKSharingContent>)content{
+    dialog.shareContent = content;
+    dialog.delegate = self;
+    return [dialog show];
+}
+
+- (void) displayInstallAppWithAppName:(NSString *)appName {
+    NSString *message = [NSString stringWithFormat:
+                         @"Install or upgrade the %@ application on your device and "
+                         @"get cool new sharing features for this application. "
+                         @"What do you want to do?" , appName];
+    [self alertWithMessage:message
+                        ok:@"Install or Upgrade Now"
+                    cancel:@"Decide Later"
+                completion:^{
+                    [[UIApplication sharedApplication]
+                     openURL:[NSURL URLWithString:[NSString stringWithFormat:@"itms-apps://itunes.com/apps/%@", appName]]];
+                }];
+}
+
+- (FBSDKShareLinkContent *)getGameLinkShareContent {
+    FBSDKShareLinkContent *content = [[FBSDKShareLinkContent alloc] init];
+    content.contentURL = [NSURL URLWithString:@"https://developers.facebook.com/"];
+    content.contentTitle = @"Rock, Papers, Scissors Sample Application";
+    return content;
+}
+
+- (FBSDKShareOpenGraphObject *)createGameObject {
     RPSResult result = [self resultForPlayerCall:_lastPlayerCall
                                     computerCall:_lastComputerCall];
 
     NSString *resultName = kResults[result];
 
-    NSMutableDictionary<FBOpenGraphObject> *game = [FBGraphObject openGraphObjectForPost];
-    game[@"type"] = @"fb_sample_rps:game";
-    game[@"title"] = @"an awesome game of Rock, Paper, Scissors";
-    game[@"data"][@"player_gesture"] = builtInOpenGraphObjects[_lastPlayerCall];
-    game[@"data"][@"opponent_gesture"] = builtInOpenGraphObjects[_lastComputerCall];
-    game[@"data"][@"result"] = resultName;
-
-    return game;
+    FBSDKShareOpenGraphObject *object = [[FBSDKShareOpenGraphObject alloc] init];
+    [object setString:@"fb_sample_rps:game" forKey:@"og:type"];
+    [object setString:@"an awesome game of Rock, Paper, Scissors" forKey:@"og:title"];
+    [object setString:builtInOpenGraphObjects[_lastPlayerCall] forKey:@"fb_sample_rps:player_gesture"];
+    [object setString:builtInOpenGraphObjects[_lastComputerCall] forKey:@"fb_sample_rps:opponent_gesture"];
+    [object setString:resultName forKey:@"fb_sample_rps:result"];
+    [object setString:photoURLs[_lastPlayerCall] forKey:@"og:image"];
+    return object;
 }
 
-- (NSMutableDictionary<FBOpenGraphAction> *)createPlayActionWithGame:(id)game {
-    NSMutableDictionary<FBOpenGraphAction> *action = [FBGraphObject openGraphActionForPost];
-    action[@"game"] = game;
-    return action;
+- (FBSDKShareOpenGraphAction *)createPlayActionWithGame:(FBSDKShareOpenGraphObject *)game {
+    return [FBSDKShareOpenGraphAction actionWithType:@"fb_sample_rps:play" object:game key:@"fb_sample_rps:game"];
 }
 
-- (void)requestPermissionsWithCompletion:(RPSBlock)completion {
-    [FBSession.activeSession requestNewPublishPermissions:[NSArray arrayWithObject:@"publish_actions"]
-                                          defaultAudience:FBSessionDefaultAudienceEveryone
-                                        completionHandler:^(FBSession *session, NSError *error) {
-                                            if (!error) {
-                                                // Now have the permission
-                                                completion();
-                                            } else {
-                                                NSLog(@"Error: %@", error.description);
-                                            }
-                                        }];
+- (void)loginAndRequestPermissionsWithSuccessHandler:(RPSBlock) successHandler
+                           declinedOrCanceledHandler:(RPSBlock) declinedOrCanceledHandler
+                                        errorHandler:(void (^)(NSError *)) errorHandler{
+    FBSDKLoginManager *login = [[FBSDKLoginManager alloc] init];
+    [login logInWithPublishPermissions:@[@"publish_actions"]
+                               handler:^(FBSDKLoginManagerLoginResult *result, NSError *error) {
+                                   if (error) {
+                                       if (errorHandler) {
+                                           errorHandler(error);
+                                       }
+                                       return;
+                                   }
+
+                                   if ([FBSDKAccessToken currentAccessToken] &&
+                                       [[FBSDKAccessToken currentAccessToken].permissions containsObject:@"publish_actions"]) {
+                                       if (successHandler) {
+                                           successHandler();
+                                       }
+                                       return;
+                                   }
+
+                                   if (declinedOrCanceledHandler) {
+                                       declinedOrCanceledHandler();
+                                   }
+                               }];
+}
+
+- (void)alertDeclinedPublishActionsWithCompletion:(RPSBlock)completion {
+    UIAlertView *alertView = [[UIAlertView alloc] initWithTitle:@"Publish Permissions"
+                                                        message:@"Publish permissions are needed to share game content automatically. Do you want to enable publish permissions?"
+                                                       delegate:self
+                                              cancelButtonTitle:@"No"
+                                              otherButtonTitles:@"Ok", nil];
+    _alertOkHandler = [completion copy];
+    [alertView show];
 }
 
 - (void)alertWithMessage:(NSString *)message
@@ -449,32 +542,46 @@ typedef void (^RPSBlock)(void);
 }
 
 - (void)publishPhotoForGesture:(RPSCall)gesture {
-    [FBRequestConnection startForUploadStagingResourceWithImage:_imagesToPublish[gesture]
-                                              completionHandler:^(FBRequestConnection *connection, id result, NSError *error) {
-                                                  if (error) {
-                                                      NSLog(@"%@", error);
-                                                      if (error.fberrorCategory == FBErrorCategoryPermissions) {
-                                                          NSLog(@"Re-requesting permissions");
-                                                          _interestedInImplicitShare = NO;
-                                                          [self alertWithMessage:@"Share game activity with your friends?"
-                                                                              ok:@"Yes"
-                                                                          cancel:@"Maybe Later"
-                                                                      completion:^{
-                                                                          _interestedInImplicitShare = YES;
-                                                                          [self requestPermissionsWithCompletion:^{
-                                                                              [self publishPhotoForGesture:gesture];
-                                                                          }];
-                                                                      }];
-                                                          return;
-                                                      }
-                                                  } else {
-                                                      photoURLs[gesture] = result[@"uri"];
-                                                      [self publishResult];
-                                                  }
-                                              }];
+    FBSDKGraphRequestConnection *conn = [[FBSDKGraphRequestConnection alloc] init];
+    FBSDKGraphRequest *request = [[FBSDKGraphRequest alloc] initWithGraphPath:@"me/staging_resources"
+                                                                   parameters:@{@"file":_imagesToPublish[gesture]}
+                                                                  tokenString:[FBSDKAccessToken currentAccessToken].tokenString
+                                                                      version:nil
+                                                                   HTTPMethod:@"POST"];
+    [conn addRequest:request completionHandler:^(FBSDKGraphRequestConnection *connection, id result, NSError *error) {
+        if (error) {
+            NSLog(@"%@", error);
+        } else {
+            photoURLs[gesture] = result[@"uri"];
+            [self publishResult];
+        }
+    }];
+    [conn start];
 }
 
 - (void)publishResult {
+    // Check if we have publish permissions and ask for them if we don't
+    if (![FBSDKAccessToken currentAccessToken] ||
+        ![[FBSDKAccessToken currentAccessToken].permissions containsObject:@"publish_actions"])
+    {
+        NSLog(@"Re-requesting permissions");
+        _interestedInImplicitShare = NO;
+        [self alertWithMessage:@"Share game activity with your friends?"
+                            ok:@"Yes"
+                        cancel:@"Maybe Later"
+                    completion:^{
+                        _interestedInImplicitShare = YES;
+                        [self loginAndRequestPermissionsWithSuccessHandler:^{
+                            [self publishResult];
+                        }
+                                                 declinedOrCanceledHandler:nil
+                                                              errorHandler:^(NSError * error) {
+                                                                  NSLog(@"Error: %@", error.description);
+                                                              }];
+                    }];
+        return;
+    }
+
     // We want to upload a photo representing the gesture the player threw, and use it as the
     // image for our game OG object. But we optimize this and only upload one instance per session.
     // So if we already have the image URL, we use it, otherwise we'll initiate an upload and
@@ -483,35 +590,85 @@ typedef void (^RPSBlock)(void);
         [self publishPhotoForGesture:_lastPlayerCall];
         return;
     }
-  
-    FBRequestConnection *connection = [[FBRequestConnection alloc] init];
 
-    NSMutableDictionary<FBOpenGraphObject> *game = [self createGameObject];
-    game[@"image"] = photoURLs[_lastPlayerCall];
-    FBRequest *objectRequest = [FBRequest requestForPostOpenGraphObject:game];
-    [connection addRequest:objectRequest
-         completionHandler:^(FBRequestConnection *connection, id result, NSError *error) {
-             if (error) {
-                 NSLog(@"Error: %@", error.description);
-              }
-         }
-            batchEntryName:@"objectCreate"];
+    FBSDKShareOpenGraphObject *game = [self createGameObject];
+    FBSDKShareOpenGraphAction *action = [self createPlayActionWithGame:game];
+    FBSDKShareOpenGraphContent *content = [[FBSDKShareOpenGraphContent alloc] init];
+    content.action = action;
+    content.previewPropertyName = @"fb_sample_rps:game";
+    [FBSDKShareAPI shareWithContent:content delegate:self];
+}
 
-  
-    NSMutableDictionary<FBGraphObject> *action = [self createPlayActionWithGame:@"{result=objectCreate:$.id}"];
-    FBRequest *actionRequest = [FBRequest requestForPostWithGraphPath:@"me/fb_sample_rps:play"
-                                                          graphObject:action];
-    [connection addRequest:actionRequest
-         completionHandler:^(FBRequestConnection *connection, id result, NSError *error) {
-             if (error) {
-                 NSLog(@"Error: %@", error.description);
-             } else {
-                 NSLog(@"Posted OG action with id: %@", result[@"id"]);
-             }
-         }];
+#pragma mark - FBSDKSharingDelegate
 
-    [connection start];
+- (void)sharer:(id<FBSDKSharing>)sharer didCompleteWithResults:(NSDictionary *)results {
+    NSLog(@"Posted OG action with id: %@", results[@"postId"]);
+}
+
+- (void)sharer:(id<FBSDKSharing>)sharer didFailWithError:(NSError *)error {
+    NSLog(@"Error: %@", error.description);
+}
+
+- (void)sharerDidCancel:(id<FBSDKSharing>)sharer {
+    NSLog(@"Canceled share");
+}
+
+#pragma mark - Logging App Event
+
+- (void)logCurrentPlayerCall:(RPSCall)playerCall
+              lastPlayerCall:(RPSCall)lastPlayerCall
+            lastComputerCall:(RPSCall)lastComputerCall {
+    // log the user's choice while comparing it against the result of their last throw
+    if (lastComputerCall != RPSCallNone && lastComputerCall != RPSCallNone) {
+        RPSResult lastResult = [self resultForPlayerCall:lastPlayerCall
+                                            computerCall:lastComputerCall];
+
+        NSString *transitionalWord = (lastResult == RPSResultWin? @"against" :
+                                      lastResult == RPSResultTie? @"with" : @"to");
+        NSString *previousResult = [NSString stringWithFormat:@"%@ %@ %@",
+                                    kResults[lastResult],
+                                    transitionalWord,
+                                    callType[lastPlayerCall + 1]];
+        [FBSDKAppEvents logEvent:@"Throw Based on Last Result"
+                      parameters:@{callType[playerCall + 1] : previousResult}];
+    }
+}
+
+- (void)logPlayerCall:(RPSCall)playerCall result:(RPSResult)result timeTaken:(NSTimeInterval)timeTaken {
+    // log the user's choice and the respective result
+    NSString *playerChoice = callType[playerCall + 1];
+    [FBSDKAppEvents logEvent:@"Round End"
+                  valueToSum:timeTaken
+                  parameters:@{@"roundResult": kResults[result], @"playerChoice" : playerChoice}];
+}
+
+- (void)logTimeTaken:(NSTimeInterval)timeTaken {
+    // logs the time a user takes to make a choice in a round
+    NSString *timeTakenStr = (timeTaken < 0.5f? @"< 0.5s" :
+                              timeTaken < 1.0f? @"0.5s <= t < 1.0s" :
+                              timeTaken < 1.5f? @"1.0s <= t < 1.5s" :
+                              timeTaken < 2.0f? @"1.5s <= t < 2.0s" :
+                              timeTaken < 2.5f? @"2.0s <= t < 2.5s" : @" >= 2.5s");
+    [FBSDKAppEvents logEvent:@"Time Taken"
+                  valueToSum:timeTaken
+                  parameters:@{@"Time Taken" : timeTakenStr}];
+}
+
+#pragma mark - FBSDKAppInviteDialogDelegate
+
+- (void)appInviteDialog:(FBSDKAppInviteDialog *)appInviteDialog didCompleteWithResults:(NSDictionary *)results
+{
+    // Intentionally no-op.
+}
+
+- (void)appInviteDialog:(FBSDKAppInviteDialog *)appInviteDialog didFailWithError:(NSError *)error
+{
+    NSLog(@"app invite error:%@", error);
+    NSString *message = error.userInfo[FBSDKErrorLocalizedDescriptionKey] ?:
+    @"There was a problem sending the invite, please try again later.";
+    NSString *title = error.userInfo[FBSDKErrorLocalizedTitleKey] ?: @"Oops!";
+
+    [[[UIAlertView alloc] initWithTitle:title message:message delegate:nil cancelButtonTitle:@"OK" otherButtonTitles:nil] show];
 }
 
 @end
-

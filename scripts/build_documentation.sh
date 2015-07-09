@@ -1,85 +1,107 @@
 #!/bin/sh
+# Copyright (c) 2014-present, Facebook, Inc. All rights reserved.
 #
-# Copyright 2010-present Facebook.
+# You are hereby granted a non-exclusive, worldwide, royalty-free license to use,
+# copy, modify, and distribute this software in source code or binary form for use
+# in connection with the web services and APIs provided by Facebook.
 #
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-# 
-#    http://www.apache.org/licenses/LICENSE-2.0
-# 
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+# As with any software that integrates with the Facebook platform, your use of
+# this software is subject to the Facebook Developer Principles and Policies
+# [http://developers.facebook.com/policy/]. This copyright notice shall be
+# included in all copies or substantial portions of the software.
 #
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+# FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+# COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+# IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+# CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
 
 # This script builds the API documentation from source-level comments.
 # This script requires appledoc be installed: https://github.com/tomaz/appledoc
 
-. ${FB_SDK_SCRIPT:-$(dirname $0)}/common.sh
+. "${FB_SDK_SCRIPT:-$(dirname "$0")}/common.sh"
 
-test -x "$APPLEDOC" || die 'Could not find appledoc in $PATH - run git clone git://github.com/tomaz/appledoc.git && appledoc/install-appledoc.sh'
+# option s to skip build
+SKIPBUILD=""
+while getopts "s:" OPTNAME
+do
+  case "$OPTNAME" in
+    s)
+      SKIPBUILD="YES"
+      ;;
+  esac
+done
 
 # -----------------------------------------------------------------------------
 # Build pre-requisites
 #
 if is_outermost_build; then
-    . $FB_SDK_SCRIPT/build_framework.sh -n
+  if [ -z SKIPBUILD ]; then
+    . "$FB_SDK_SCRIPT/build_framework.sh" -n
+  fi
 fi
-progress_message Building Documentation.
+
+APPLEDOC_PATH="$FB_SDK_BUILD"/appledoc
+progress_message "$APPLEDOC_PATH"
+
+if [ ! -f "$APPLEDOC_PATH" ]; then
+  # appledoc is currently being refactored for v3, which will be free from GC.
+  # In the meantime, use a pre-compiled binary if it is dropped into
+  # vendor/appledoc_bin/
+  VENDOR_APPLEDOC_PATH="$FB_SDK_ROOT"/vendor/appledoc_bin/appledoc
+  if [ -f "$VENDOR_APPLEDOC_PATH" ]; then
+    cp "$VENDOR_APPLEDOC_PATH" "$APPLEDOC_PATH"
+  fi
+fi
+
+if [ ! -f "$APPLEDOC_PATH" ]; then
+  progress_message Building appledoc
+  pushd "$FB_SDK_ROOT"/vendor/appledoc/ >/dev/null
+  ./install-appledoc.sh -b "$FB_SDK_BUILD" || die 'Could not build appledoc'
+  popd >/dev/null
+fi
 
 # -----------------------------------------------------------------------------
 # Build docs
 #
-test -d $FB_SDK_BUILD \
-  || mkdir -p $FB_SDK_BUILD \
+progress_message Building Documentation.
+test -d "$FB_SDK_BUILD" \
+  || mkdir -p "$FB_SDK_BUILD" \
   || die "Could not create directory $FB_SDK_BUILD"
 
-cd $FB_SDK_SRC
+cd "$FB_SDK_ROOT"
 
-DOCSET="$FB_SDK_BUILD"/"$FB_SDK_DOCSET_NAME"
+rm -rf "$FB_SDK_FRAMEWORK_DOCS"
 
-rm -rf $DOCSET
+DOCSET="$FB_SDK_BUILD"/docset.build
+rm -rf "$DOCSET"
 
-hash $APPLEDOC &>/dev/null
+hash "$APPLEDOC_PATH" &>/dev/null
 if [ "$?" -eq "0" ]; then
-    APPLEDOC_DOCSET_NAME="Facebook SDK 3.5.3 for iOS"
-    $APPLEDOC --project-name "$APPLEDOC_DOCSET_NAME" \
+    APPLEDOC_DOCSET_NAME="Facebook SDK $FB_SDK_VERSION_SHORT for iOS"
+    "$APPLEDOC_PATH" --project-name "$APPLEDOC_DOCSET_NAME" \
 	--project-company "Facebook" \
 	--company-id "com.facebook" \
-	--output "$DOCSET" \
+  --output "$DOCSET" \
 	--preprocess-headerdoc \
-	--docset-bundle-name "$APPLEDOC_DOCSET_NAME" \
+	--docset-bundle-filename "$FB_SDK_DOCSET_NAME" \
 	--docset-feed-name "$APPLEDOC_DOCSET_NAME" \
+	--docset-install-path "$FB_SDK_BUILD" \
 	--exit-threshold 2 \
 	--no-install-docset \
 	--search-undocumented-doc \
 	--keep-undocumented-members \
 	--keep-undocumented-objects \
 	--explicit-crossref \
-	$FB_SDK_FRAMEWORK/Headers \
+	"$FB_SDK_BUILD/FBSDKCoreKit.framework/Headers" \
+  "$FB_SDK_BUILD/FBSDKLoginKit.framework/Headers" \
+  "$FB_SDK_BUILD/FBSDKShareKit.framework/Headers" \
     || die 'appledoc execution failed'
 else
     die "appledoc not installed, unable to build documentation"
 fi
-
-# Temporary workaround to an appledoc bug that drops protocol names.
-function replace_string() {
-    perl -pi -e "s/$1/$2/" $3
-}
-
-DOCSDIR="$DOCSET"/docset/Contents/Resources/Documents
-replace_string 'id&lt;&gt; delegate' 'id&lt;FBFriendPickerDelegate&gt; delegate' "$DOCSDIR"/Classes/FBFriendPickerViewController.html
-replace_string 'id&lt;&gt; delegate' 'id&lt;FBPlacePickerDelegate&gt; delegate' "$DOCSDIR"/Classes/FBPlacePickerViewController.html
-replace_string 'id&lt;&gt; selection' 'id&lt;FBGraphPlace&gt; selection' "$DOCSDIR"/Classes/FBPlacePickerViewController.html
-replace_string 'id&lt;&gt; graphObject' 'id&lt;FBGraphObject&gt; graphObject' "$DOCSDIR"/Classes/FBRequest.html
-replace_string 'id&lt;&gt; application' 'id&lt;FBGraphObject&gt; application' "$DOCSDIR"/Protocols/FBOpenGraphAction.html
-replace_string 'id&lt;&gt; from' 'id&lt;FBGraphUser&gt; from' "$DOCSDIR"/Protocols/FBOpenGraphAction.html
-replace_string 'id&lt;&gt; place' 'id&lt;FBGraphPlace&gt; place' "$DOCSDIR"/Protocols/FBOpenGraphAction.html
-replace_string 'id&lt;&gt; location' 'id&lt;FBGraphLocation&gt; location' "$DOCSDIR"/Protocols/FBGraphUser.html
-replace_string 'id&lt;&gt; location' 'id&lt;FBGraphLocation&gt; location' "$DOCSDIR"/Protocols/FBGraphPlace.html
 
 # -----------------------------------------------------------------------------
 # Done

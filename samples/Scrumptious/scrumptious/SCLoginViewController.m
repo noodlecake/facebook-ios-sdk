@@ -1,121 +1,138 @@
-/*
- * Copyright 2010-present Facebook.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- * 
- *    http://www.apache.org/licenses/LICENSE-2.0
- 
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// Copyright (c) 2014-present, Facebook, Inc. All rights reserved.
+//
+// You are hereby granted a non-exclusive, worldwide, royalty-free license to use,
+// copy, modify, and distribute this software in source code or binary form for use
+// in connection with the web services and APIs provided by Facebook.
+//
+// As with any software that integrates with the Facebook platform, your use of
+// this software is subject to the Facebook Developer Principles and Policies
+// [http://developers.facebook.com/policy/]. This copyright notice shall be
+// included in all copies or substantial portions of the software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+// FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+// COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+// IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+// CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #import "SCLoginViewController.h"
-#import "SCAppDelegate.h"
-#import "SCViewController.h"
+
+#import <FBSDKCoreKit/FBSDKCoreKit.h>
+
+#import "SCSettings.h"
 
 @implementation SCLoginViewController
+{
+    BOOL _viewDidAppear;
+    BOOL _viewIsVisible;
+}
 
-- (id)initWithNibName:(NSString *)nibNameOrNil bundle:(NSBundle *)nibBundleOrNil {
-    self = [super initWithNibName:nibNameOrNil bundle:nibBundleOrNil];
-    if (self) {
-        // Facebook SDK * pro-tip *
-        // We wire up the FBLoginView using the interface builder
+#pragma mark - Object lifecycle
+
+- (instancetype)initWithNibName:(NSString *)nibNameOrNil bundle:(NSBundle *)nibBundleOrNil
+{
+    if ((self = [super initWithNibName:nibNameOrNil bundle:nibBundleOrNil])) {
+        // We wire up the FBSDKLoginButton using the interface builder
         // but we could have also explicitly wired its delegate here.
     }
     return self;
 }
 
-- (void)viewWillAppear:(BOOL)animated {
-    [super viewWillAppear:animated];
-    
-    self.navigationController.navigationBarHidden = YES;
+- (void)dealloc {
+    [[NSNotificationCenter defaultCenter] removeObserver:self];
 }
 
-- (void)viewWillDisappear:(BOOL)animated {
-    self.navigationController.navigationBarHidden = NO;
-}
+#pragma mark - View Management
 
-- (void)viewDidUnload {
-    [self setFBLoginView:nil];
-    [super viewDidUnload];
-}
+- (void)viewDidLoad
+{
+    [super viewDidLoad];
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(observeProfileChange:) name:FBSDKProfileDidChangeNotification object:nil];
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(observeTokenChange:) name:FBSDKAccessTokenDidChangeNotification object:nil];
+    self.loginButton.readPermissions = @[@"public_profile", @"user_friends"];
 
-- (BOOL)shouldAutorotateToInterfaceOrientation:(UIInterfaceOrientation)interfaceOrientation {
-    return (interfaceOrientation == UIInterfaceOrientationPortrait);
-}
-
-#pragma mark - FBLoginView delegate
-
-- (void)loginViewShowingLoggedInUser:(FBLoginView *)loginView {
-    // Upon login, transition to the main UI by pushing it onto the navigation stack.
-    SCAppDelegate *appDelegate = (SCAppDelegate *)[UIApplication sharedApplication].delegate;
-    [self.navigationController pushViewController:((UIViewController *)appDelegate.mainViewController) animated:YES];
-}
-
-- (void)loginView:(FBLoginView *)loginView
-      handleError:(NSError *)error{
-    NSString *alertMessage, *alertTitle;
-    
-    // Facebook SDK * error handling *
-    // Error handling is an important part of providing a good user experience.
-    // Since this sample uses the FBLoginView, this delegate will respond to
-    // login failures, or other failures that have closed the session (such
-    // as a token becoming invalid). Please see the [- postOpenGraphAction:]
-    // and [- requestPermissionAndPost] on `SCViewController` for further
-    // error handling on other operations.
-    
-    if (error.fberrorShouldNotifyUser) {
-        // If the SDK has a message for the user, surface it. This conveniently
-        // handles cases like password change or iOS6 app slider state.
-        alertTitle = @"Something Went Wrong";
-        alertMessage = error.fberrorUserMessage;
-    } else if (error.fberrorCategory == FBErrorCategoryAuthenticationReopenSession) {
-        // It is important to handle session closures as mentioned. You can inspect
-        // the error for more context but this sample generically notifies the user.
-        alertTitle = @"Session Error";
-        alertMessage = @"Your current session is no longer valid. Please log in again.";
-    } else if (error.fberrorCategory == FBErrorCategoryUserCancelled) {
-        // The user has cancelled a login. You can inspect the error
-        // for more context. For this sample, we will simply ignore it.
-        NSLog(@"user cancelled login");
-    } else {
-        // For simplicity, this sample treats other errors blindly, but you should
-        // refer to https://developers.facebook.com/docs/technical-guides/iossdk/errors/ for more information.
-        alertTitle  = @"Unknown Error";
-        alertMessage = @"Error. Please try again later.";
-        NSLog(@"Unexpected error:%@", error);
+    // If there's already a cached token, read the profile information.
+    if ([FBSDKAccessToken currentAccessToken]) {
+        [self observeProfileChange:nil];
     }
-    
-    if (alertMessage) {
+}
+
+- (void)viewDidAppear:(BOOL)animated
+{
+    [super viewDidAppear:animated];
+
+    SCSettings *settings = [SCSettings defaultSettings];
+    if (_viewDidAppear) {
+        _viewIsVisible = YES;
+
+        // reset
+        settings.shouldSkipLogin = NO;
+    } else {
+        if (settings.shouldSkipLogin || [FBSDKAccessToken currentAccessToken]) {
+            [self performSegueWithIdentifier:@"showMain" sender:nil];
+        } else {
+            _viewIsVisible = YES;
+        }
+        _viewDidAppear = YES;
+    }
+}
+
+- (void)viewWillDisappear:(BOOL)animated
+{
+    [super viewWillDisappear:animated];
+
+    [SCSettings defaultSettings].shouldSkipLogin = YES;
+    _viewIsVisible = NO;
+}
+
+#pragma mark - Actions
+
+- (IBAction)showLogin:(UIStoryboardSegue *)segue
+{
+    // This method exists in order to create an unwind segue to this controller.
+}
+
+#pragma mark - FBSDKLoginButtonDelegate
+
+- (void)loginButton:(FBSDKLoginButton *)loginButton didCompleteWithResult:(FBSDKLoginManagerLoginResult *)result error:(NSError *)error {
+    if (error) {
+        NSLog(@"Unexpected login error: %@", error);
+        NSString *alertMessage = error.userInfo[FBSDKErrorLocalizedDescriptionKey] ?: @"There was a problem logging in. Please try again later.";
+        NSString *alertTitle = error.userInfo[FBSDKErrorLocalizedTitleKey] ?: @"Oops";
         [[[UIAlertView alloc] initWithTitle:alertTitle
                                     message:alertMessage
                                    delegate:nil
                           cancelButtonTitle:@"OK"
                           otherButtonTitles:nil] show];
-    }
-}
-
-- (void)loginViewShowingLoggedOutUser:(FBLoginView *)loginView {
-    // Facebook SDK * login flow *
-    // It is important to always handle session closure because it can happen
-    // externally; for example, if the current session's access token becomes
-    // invalid. For this sample, we simply pop back to the landing page.
-    SCAppDelegate *appDelegate = (SCAppDelegate *)[UIApplication sharedApplication].delegate;
-    if (appDelegate.isNavigating) {
-        // The delay is for the edge case where a session is immediately closed after
-        // logging in and our navigation controller is still animating a push.
-        [self performSelector:@selector(logOut) withObject:nil afterDelay:.5];
     } else {
-        [self logOut];
+        if (_viewIsVisible) {
+            [self performSegueWithIdentifier:@"showMain" sender:self];
+        }
     }
 }
 
-- (void)logOut {
-    [self.navigationController popToRootViewControllerAnimated:YES];
+- (void)loginButtonDidLogOut:(FBSDKLoginButton *)loginButton {
+    if (_viewIsVisible) {
+        [self performSegueWithIdentifier:@"continue" sender:self];
+    }
 }
+
+#pragma mark - Observations
+
+- (void)observeProfileChange:(NSNotification *)notfication {
+    if ([FBSDKProfile currentProfile]) {
+        NSString *title = [NSString stringWithFormat:@"continue as %@", [FBSDKProfile currentProfile].name];
+        [self.continueButton setTitle:title forState:UIControlStateNormal];
+    }
+}
+
+- (void)observeTokenChange:(NSNotification *)notfication {
+    if (![FBSDKAccessToken currentAccessToken]) {
+        [self.continueButton setTitle:@"continue as a guest" forState:UIControlStateNormal];
+    } else {
+        [self observeProfileChange:nil];
+    }
+}
+
 @end
