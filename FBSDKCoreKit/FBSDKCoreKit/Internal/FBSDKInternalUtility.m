@@ -16,6 +16,8 @@
 // IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
+#import "AndroidMacros.h"
+
 #import "FBSDKInternalUtility.h"
 
 #import <sys/time.h>
@@ -234,9 +236,9 @@ setJSONStringForObject:(id)object
   };
   static dispatch_once_t getVersionOnce;
   dispatch_once(&getVersionOnce, ^{
-    if ([NSProcessInfo instancesRespondToSelector:@selector(operatingSystemVersion)]) {
-      operatingSystemVersion = [NSProcessInfo processInfo].operatingSystemVersion;
-    } else {
+//    if ([NSProcessInfo instancesRespondToSelector:@selector(operatingSystemVersion)]) {
+//      operatingSystemVersion = [NSProcessInfo processInfo].operatingSystemVersion;
+//    } else {
       NSArray *components = [[UIDevice currentDevice].systemVersion componentsSeparatedByString:@"."];
       switch (components.count) {
         default:
@@ -252,7 +254,7 @@ setJSONStringForObject:(id)object
         case 0:
           operatingSystemVersion.majorVersion = ([self isUIKitLinkTimeVersionAtLeast:FBSDKUIKitVersion_7_0] ? 7 : 6);
           break;
-      }
+//      }
     }
   });
   return ([self _compareOperatingSystemVersion:operatingSystemVersion toVersion:version] != NSOrderedAscending);
@@ -265,24 +267,26 @@ setJSONStringForObject:(id)object
 
 + (BOOL)isUIKitLinkTimeVersionAtLeast:(FBSDKUIKitVersion)version
 {
-  static int32_t linkTimeMajorVersion;
-  static dispatch_once_t getVersionOnce;
-  dispatch_once(&getVersionOnce, ^{
-    int32_t linkTimeVersion = NSVersionOfLinkTimeLibrary("UIKit");
-    linkTimeMajorVersion = ((MAX(linkTimeVersion, 0) & FBSDKInternalUtilityMajorVersionMask) >> FBSDKInternalUtilityMajorVersionShift);
-  });
-  return (version <= linkTimeMajorVersion);
+//  static int32_t linkTimeMajorVersion;
+//  static dispatch_once_t getVersionOnce;
+//  dispatch_once(&getVersionOnce, ^{
+//    int32_t linkTimeVersion = NSVersionOfLinkTimeLibrary("UIKit");
+//    linkTimeMajorVersion = ((MAX(linkTimeVersion, 0) & FBSDKInternalUtilityMajorVersionMask) >> FBSDKInternalUtilityMajorVersionShift);
+//  });
+//  return (version <= linkTimeMajorVersion);
+    return NO;
 }
 
 + (BOOL)isUIKitRunTimeVersionAtLeast:(FBSDKUIKitVersion)version
 {
-  static int32_t runTimeMajorVersion;
-  static dispatch_once_t getVersionOnce;
-  dispatch_once(&getVersionOnce, ^{
-    int32_t runTimeVersion = NSVersionOfRunTimeLibrary("UIKit");
-    runTimeMajorVersion = ((MAX(runTimeVersion, 0) & FBSDKInternalUtilityMajorVersionMask) >> FBSDKInternalUtilityMajorVersionShift);
-  });
-  return (version <= runTimeMajorVersion);
+//  static int32_t runTimeMajorVersion;
+//  static dispatch_once_t getVersionOnce;
+//  dispatch_once(&getVersionOnce, ^{
+//    int32_t runTimeVersion = NSVersionOfRunTimeLibrary("UIKit");
+//    runTimeMajorVersion = ((MAX(runTimeVersion, 0) & FBSDKInternalUtilityMajorVersionMask) >> FBSDKInternalUtilityMajorVersionShift);
+//  });
+//  return (version <= runTimeMajorVersion);
+    return NO;
 }
 
 + (NSString *)JSONStringForObject:(id)object

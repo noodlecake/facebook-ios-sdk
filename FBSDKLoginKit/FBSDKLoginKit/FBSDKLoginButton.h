@@ -63,7 +63,7 @@ typedef NS_ENUM(NSUInteger, FBSDKLoginButtonTooltipBehavior)
 /*!
  @abstract Gets or sets the delegate.
  */
-@property (weak, nonatomic) IBOutlet id<FBSDKLoginButtonDelegate> delegate;
+@property (assign, nonatomic) IBOutlet id<FBSDKLoginButtonDelegate> delegate;
 /*!
  @abstract Gets or sets the login behavior to use
  */
