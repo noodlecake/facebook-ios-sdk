@@ -43,6 +43,7 @@ struct FBSDKDFLLoadSymbolContext
 // differently so the loading function passed to dispatch_once() calls this.
 static void *fbsdkdfl_load_library_once(const char *path)
 {
+
   void *handle = dlopen(path, RTLD_LAZY);
   if (handle) {
     [FBSDKLogger singleShotLogEntry:FBSDKLoggingBehaviorInformational formatString:@"Dynamically loaded library at %s", path];
@@ -78,8 +79,10 @@ static void *fbsdkdfl_load_framework_once(NSString *framework)
 // Callback from dispatch_once() to load a specific symbol
 static void fbsdkdfl_load_symbol_once(void *context)
 {
+  NSLog(@"***************************LOADING SYMBOL");
   struct FBSDKDFLLoadSymbolContext *ctx = context;
   *ctx->address = dlsym(ctx->library(), ctx->name);
+  NSLog(@"*************************************SYMBOL LOADED %p", *ctx->address);
 }
 
 // The boilerplate code for loading a symbol from a given library once and caching it in a static local
@@ -95,7 +98,9 @@ static void fbsdkdfl_load_symbol_once(void *context)
 
 // convenience macro for verifying a pointer to a named variable was successfully loaded and returns the value
 #define _fbsdkdfl_return_k(FRAMEWORK, SYMBOL) \
+  NSLog(@"*******************************DID IT GET HERE"); \
   NSCAssert(k != NULL, @"Failed to load constant %@ in the %@ framework", @#SYMBOL, @#FRAMEWORK); \
+  NSLog(@"*******************************DID IT GET HERE 2 %p", k); \
   return *k
 
 // convenience macro for getting a pointer to a named NSString, verifying it loaded correctly, and returning it
@@ -127,62 +132,63 @@ _fbsdkdfl_handle_get_impl_(Security)
 
 + (CFTypeRef)loadkSecAttrAccessible
 {
-  _fbsdkdfl_Security_get_and_return_k(kSecAttrAccessible);
+  return (CFTypeRef)@"kSecAttrAccessible";
 }
 
 + (CFTypeRef)loadkSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
 {
-  _fbsdkdfl_Security_get_and_return_k(kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly);
+  return (CFTypeRef)@"kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly";
 }
 
 + (CFTypeRef)loadkSecAttrAccount
 {
-  _fbsdkdfl_Security_get_and_return_k(kSecAttrAccount);
+  return (CFTypeRef)@"kSecAttrAccount";
 }
 
 + (CFTypeRef)loadkSecAttrService
 {
-  _fbsdkdfl_Security_get_and_return_k(kSecAttrService);
+  return (CFTypeRef)@"kSecAttrService";
 }
 
 + (CFTypeRef)loadkSecAttrGeneric
 {
-  _fbsdkdfl_Security_get_and_return_k(kSecAttrGeneric);
+  return (CFTypeRef)@"kSecAttrGeneric";
 }
 
 + (CFTypeRef)loadkSecValueData
 {
-  _fbsdkdfl_Security_get_and_return_k(kSecValueData);
+  return (CFTypeRef)@"kSecValueData";
 }
 
 + (CFTypeRef)loadkSecClassGenericPassword
 {
-  _fbsdkdfl_Security_get_and_return_k(kSecClassGenericPassword);
+  CFTypeRef ref = (CFTypeRef)@"kSecClassGenericPassword";    
+  return ref;
 }
 
 + (CFTypeRef)loadkSecAttrAccessGroup
 {
-  _fbsdkdfl_Security_get_and_return_k(kSecAttrAccessGroup);
+  return (CFTypeRef)@"kSecAttrAccessGroup";
 }
 
 + (CFTypeRef)loadkSecMatchLimitOne
 {
-  _fbsdkdfl_Security_get_and_return_k(kSecMatchLimitOne);
+  return (CFTypeRef)@"kSecMatchLimitOne";
 }
 
 + (CFTypeRef)loadkSecMatchLimit
 {
-  _fbsdkdfl_Security_get_and_return_k(kSecMatchLimit);
+  return (CFTypeRef)@"kSecMatchLimit";
 }
 
 + (CFTypeRef)loadkSecReturnData
 {
-  _fbsdkdfl_Security_get_and_return_k(kSecReturnData);
+  return (CFTypeRef)@"kSecReturnData";
 }
 
 + (CFTypeRef)loadkSecClass
 {
-  _fbsdkdfl_Security_get_and_return_k(kSecClass);
+  return (CFTypeRef)@"kSecClass";
 }
 
 #pragma mark - Object Lifecycle
@@ -207,32 +213,27 @@ typedef OSStatus (*SecItemDelete_type)(CFDictionaryRef);
 
 int fbsdkdfl_SecRandomCopyBytes(SecRandomRef rnd, size_t count, uint8_t *bytes)
 {
-  _fbsdkdfl_Security_get_f(SecRandomCopyBytes);
-  return f(rnd, count, bytes);
+  return SecRandomCopyBytes(rnd, count, bytes);
 }
 
 OSStatus fbsdkdfl_SecItemUpdate(CFDictionaryRef query, CFDictionaryRef attributesToUpdate)
 {
-  _fbsdkdfl_Security_get_f(SecItemUpdate);
-  return f(query, attributesToUpdate);
+  return SecItemUpdate(query, attributesToUpdate);
 }
 
 OSStatus fbsdkdfl_SecItemAdd(CFDictionaryRef attributes, CFTypeRef *result)
 {
-  _fbsdkdfl_Security_get_f(SecItemAdd);
-  return f(attributes, result);
+  return SecItemAdd(attributes, result);
 }
 
 OSStatus fbsdkdfl_SecItemCopyMatching(CFDictionaryRef query, CFTypeRef *result)
 {
-  _fbsdkdfl_Security_get_f(SecItemCopyMatching);
-  return f(query, result);
+  return SecItemCopyMatching(query, result);
 }
 
 OSStatus fbsdkdfl_SecItemDelete(CFDictionaryRef query)
 {
-  _fbsdkdfl_Security_get_f(SecItemDelete);
-  return f(query);
+  return SecItemDelete(query);
 }
 
 #pragma mark - sqlite3 APIs
