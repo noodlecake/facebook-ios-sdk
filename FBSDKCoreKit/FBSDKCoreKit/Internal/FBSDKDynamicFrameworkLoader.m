@@ -79,10 +79,8 @@ static void *fbsdkdfl_load_framework_once(NSString *framework)
 // Callback from dispatch_once() to load a specific symbol
 static void fbsdkdfl_load_symbol_once(void *context)
 {
-  NSLog(@"***************************LOADING SYMBOL");
   struct FBSDKDFLLoadSymbolContext *ctx = context;
   *ctx->address = dlsym(ctx->library(), ctx->name);
-  NSLog(@"*************************************SYMBOL LOADED %p", *ctx->address);
 }
 
 // The boilerplate code for loading a symbol from a given library once and caching it in a static local
@@ -98,9 +96,7 @@ static void fbsdkdfl_load_symbol_once(void *context)
 
 // convenience macro for verifying a pointer to a named variable was successfully loaded and returns the value
 #define _fbsdkdfl_return_k(FRAMEWORK, SYMBOL) \
-  NSLog(@"*******************************DID IT GET HERE"); \
   NSCAssert(k != NULL, @"Failed to load constant %@ in the %@ framework", @#SYMBOL, @#FRAMEWORK); \
-  NSLog(@"*******************************DID IT GET HERE 2 %p", k); \
   return *k
 
 // convenience macro for getting a pointer to a named NSString, verifying it loaded correctly, and returning it
@@ -124,11 +120,11 @@ _fbsdkdfl_handle_get_impl_(Security)
   _fbsdkdfl_Security_get_k(SYMBOL); \
   _fbsdkdfl_return_k(Security, SYMBOL)
 
-+ (SecRandomRef)loadkSecRandomDefault
-{
-  _fbsdkdfl_symbol_get_k(Security, kSecRandomDefault, SecRandomRef *);
-  _fbsdkdfl_return_k(Security, kSecRandomDefault);
-}
+//+ (SecRandomRef)loadkSecRandomDefault
+//{
+//  _fbsdkdfl_symbol_get_k(Security, kSecRandomDefault, SecRandomRef *);
+//  _fbsdkdfl_return_k(Security, kSecRandomDefault);
+//}
 
 + (CFTypeRef)loadkSecAttrAccessible
 {

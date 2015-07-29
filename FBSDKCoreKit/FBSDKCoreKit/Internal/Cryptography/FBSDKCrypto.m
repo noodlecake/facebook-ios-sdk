@@ -89,11 +89,13 @@ FBSDK_STATIC_INLINE NSData *FBSDKCryptoMakeSubKey(uint8_t *key, size_t len, uint
 + (NSData *)randomBytes:(NSUInteger)numOfBytes
 {
   uint8_t *buffer = malloc(numOfBytes);
-  int result = fbsdkdfl_SecRandomCopyBytes([FBSDKDynamicFrameworkLoader loadkSecRandomDefault], numOfBytes, buffer);
-  if (result != 0) {
-    free(buffer);
-    return nil;
-  }
+//  int result = fbsdkdfl_SecRandomCopyBytes([FBSDKDynamicFrameworkLoader loadkSecRandomDefault], numOfBytes, buffer);
+//  if (result != 0) {
+//    free(buffer);
+//    return nil;
+//  }
+  arc4random_buf((void *)buffer, numOfBytes);
+  
   return [NSData dataWithBytesNoCopy:buffer length:numOfBytes];
 }
 
@@ -166,9 +168,10 @@ FBSDK_STATIC_INLINE NSData *FBSDKCryptoMakeSubKey(uint8_t *key, size_t len, uint
   memcpy(buffer + offsetIV, IV.bytes, IV.length);
 
   memcpy(buffer + offsetCipherData, plainText.bytes, plainTextLength); // Copy input in
-  fbsdkdfl_SecRandomCopyBytes([FBSDKDynamicFrameworkLoader loadkSecRandomDefault],
-                              numPaddingBytes,
-                              buffer + offsetCipherData + plainTextLength); // Random pad
+  //fbsdkdfl_SecRandomCopyBytes([FBSDKDynamicFrameworkLoader loadkSecRandomDefault],
+  //                            numPaddingBytes,
+  //                            buffer + offsetCipherData + plainTextLength); // Random pad
+  arc4random_buf((void *)(buffer + offsetCipherData + plainTextLength), numPaddingBytes);
   buffer[offsetCipherData + cipherDataLength - 1] = numPaddingBytes; // Record the number of padded bytes at the end
 
   size_t numOutputBytes = 0;

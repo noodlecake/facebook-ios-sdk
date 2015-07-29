@@ -782,7 +782,7 @@ typedef NS_ENUM(NSUInteger, FBSDKGraphRequestConnectionState)
       [FBSDKInternalUtility dictionary:userInfo setObject:result[@"code"] forKey:FBSDKGraphRequestErrorHTTPStatusCodeKey];
       [FBSDKInternalUtility dictionary:userInfo setObject:result forKey:FBSDKGraphRequestErrorParsedJSONResponseKey];
 
-      FBSDKErrorRecoveryConfiguration *recoveryConfiguration = [g_errorConfiguration
+      FBSDKErrorRecoveryConfiguration *recoveryConfiguration = [g_errorConfiguration 
                                                                 recoveryConfigurationForCode:[userInfo[FBSDKGraphRequestErrorGraphErrorCode] stringValue]
                                                                 subcode:[userInfo[FBSDKGraphRequestErrorGraphErrorSubcode] stringValue]
                                                                 request:request];

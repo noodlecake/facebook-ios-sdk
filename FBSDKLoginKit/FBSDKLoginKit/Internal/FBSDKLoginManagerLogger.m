@@ -116,13 +116,18 @@ NSString *const FBSDKLoginManagerLoggerTryWebView = @"tryFallback";
       break;
   }
 
-  [_extras addEntriesFromDictionary:@{
-    FBSDKLoginManagerLoggerTryNative : @(willTryNative),
-    FBSDKLoginManagerLoggerTryBrowser : @(willTryBrowser),
-    FBSDKLoginManagerLoggerTrySystemAccount : @(willTrySystemAccount),
-    FBSDKLoginManagerLoggerTryWebView : @(willTryWebView),
-    @"isReauthorize" : @(isReauthorize),
-  }];
+  [_extras setObject:@(willTryNative) forKey:FBSDKLoginManagerLoggerTryNative];
+  [_extras setObject:@(willTryBrowser) forKey:FBSDKLoginManagerLoggerTryBrowser];
+  [_extras setObject:@(willTrySystemAccount) forKey:FBSDKLoginManagerLoggerTrySystemAccount];
+  [_extras setObject:@(willTryWebView) forKey:FBSDKLoginManagerLoggerTryWebView];
+  [_extras setObject:@(isReauthorize) forKey:@"isReauthorize"];
+//  [_extras addEntriesFromDictionary:@{
+//    FBSDKLoginManagerLoggerTryNative : @(willTryNative),
+//    FBSDKLoginManagerLoggerTryBrowser : @(willTryBrowser),
+//    FBSDKLoginManagerLoggerTrySystemAccount : @(willTrySystemAccount),
+//    FBSDKLoginManagerLoggerTryWebView : @(willTryWebView),
+//    @"isReauthorize" : @(isReauthorize),
+//  }];
 
   [self logEvent:FBSDKAppEventNameFBSessionAuthStart params:[self parametersForNewEventWithBehavior:NULL]];
 }
@@ -184,18 +189,22 @@ NSString *const FBSDKLoginManagerLoggerTryWebView = @"tryFallback";
   NSString *defaultUrlScheme = [NSString stringWithFormat:@"fb%@%@", [FBSDKSettings appID], [FBSDKSettings appURLSchemeSuffix] ?: @""];
   BOOL isURLSchemeRegistered = [FBSDKInternalUtility isRegisteredURLScheme:defaultUrlScheme];
 
-  [_extras addEntriesFromDictionary:@{
-    @"isMultitaskingSupported" : @([UIDevice currentDevice].isMultitaskingSupported),
-    @"isURLSchemeRegistered" : @(isURLSchemeRegistered),
-  }];
+  [_extras setObject:@([UIDevice currentDevice].isMultitaskingSupported) forKey:@"isMultitaskingSupported"];
+  [_extras setObject:@(isURLSchemeRegistered) forKey:@"isURLSchemeRegistered"];
+//  [_extras addEntriesFromDictionary:@{
+//    @"isMultitaskingSupported" : @([UIDevice currentDevice].isMultitaskingSupported),
+//    @"isURLSchemeRegistered" : @(isURLSchemeRegistered),
+//  }];
 }
 
 - (void)systemAuthDidShowDialog:(BOOL)didShowDialog isUnTOSedDevice:(BOOL)isUnTOSedDevice
 {
-  [_extras addEntriesFromDictionary:@{
-    @"isUntosedDevice" : @(isUnTOSedDevice),
-    @"dialogShown" : @(didShowDialog),
-  }];
+  [_extras setObject:@(isUnTOSedDevice) forKey:@"isUntosedDevice"];
+  [_extras setObject:@(didShowDialog) forKey:@"dialogShown"];
+//  [_extras addEntriesFromDictionary:@{
+//    @"isUntosedDevice" : @(isUnTOSedDevice),
+//    @"dialogShown" : @(didShowDialog),
+//  }];
 }
 
 #pragma mark - Private
@@ -262,7 +271,9 @@ NSString *const FBSDKLoginManagerLoggerTryWebView = @"tryFallback";
     if (extrasJSONString) {
         params[FBSDKLoginManagerLoggerParamExtrasKey] = extrasJSONString;
     }
-    [_extras removeAllObjects];
+    if ([_extras count] > 0) {
+        [_extras removeAllObjects];
+    }
 
     [FBSDKAppEvents logImplicitEvent:eventName valueToSum:nil parameters:params accessToken:nil];
   }
@@ -297,7 +308,7 @@ NSString *const FBSDKLoginManagerLoggerTryWebView = @"tryFallback";
     params[FBSDKLoginManagerLoggerParamErrorCodeKey] = @(error.code);
   }
 
-  [self logEvent:eventName params:params];
+  //[self logEvent:eventName params:params];
 }
 
 @end

@@ -419,12 +419,14 @@ static NSString *g_overrideAppID = nil;
     if (!_appEventsState) {
       return;
     }
-    FBSDKAppEventsState *copy = [_appEventsState copy];
-    _appEventsState = [[FBSDKAppEventsState alloc] initWithToken:copy.tokenString
-                                                           appID:copy.appID];
-    dispatch_async(dispatch_get_main_queue(), ^{
-      [self flushOnMainQueue:copy forReason:flushReason];
-    });
+    //FBSDKAppEventsState *copy = [_appEventsState copy];
+    //_appEventsState = [[FBSDKAppEventsState alloc] initWithToken:copy.tokenString
+    //                                                       appID:copy.appID];
+    //dispatch_async(dispatch_get_main_queue(), ^{
+    //  [self flushOnMainQueue:copy forReason:flushReason];
+    //});
+    _appEventsState = [[FBSDKAppEventsState alloc] initWithToken:_appEventsState.tokenString
+                                                           appID:_appEventsState.appID];
   }
 }
 

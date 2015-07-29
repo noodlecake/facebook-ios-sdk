@@ -465,7 +465,7 @@ static NSString *const FBSDKExpectedChallengeKey = @"expected_login_challenge";
   BOOL isFacebookURL = [[url scheme] hasPrefix:[NSString stringWithFormat:@"fb%@", [FBSDKSettings appID]]] &&
     [[url host] isEqualToString:@"authorize"];
 
-  BOOL isExpectedSourceApplication = [sourceApplication hasPrefix:@"com.facebook"] || [sourceApplication hasPrefix:@"com.apple"];
+  BOOL isExpectedSourceApplication = sourceApplication == nil || [sourceApplication hasPrefix:@"com.facebook"] || [sourceApplication hasPrefix:@"com.apple"];
 
   if (!isFacebookURL && _performingLogIn) {
     [self handleImplicitCancelOfLogIn];

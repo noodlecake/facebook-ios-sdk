@@ -159,7 +159,7 @@ static NSString *const FBSDKAppLinkInboundEvent = @"fb_al_inbound";
 - (void)applicationWillResignActive:(NSNotification *)notification
 {
   _active = NO;
-  _expectingResign = NO;
+  //_expectingResign = NO;
 }
 
 - (void)applicationDidBecomeActive:(NSNotification *)notification

@@ -56,7 +56,11 @@
 {
   FBSDKAppEventsState *copy = [[FBSDKAppEventsState allocWithZone:zone] initWithToken:_tokenString appID:_appID];
   if (copy) {
-    [copy->_mutableEvents addObjectsFromArray:_mutableEvents];
+    //[copy->_mutableEvents addObjectsFromArray:_mutableEvents];
+    for (id toCopy in _mutableEvents) {
+        [copy->_mutableEvents addObject:toCopy];
+    }
+      
     copy->_numSkipped = _numSkipped;
     copy->_containsExplicitEvent = _containsExplicitEvent;
   }
@@ -78,7 +82,12 @@
   NSUInteger numSkipped = [[decoder decodeObjectOfClass:[NSNumber class] forKey:FBSDK_APPEVENTSSTATE_NUMSKIPPED_KEY] unsignedIntegerValue];
 
   if ((self = [self initWithToken:tokenString appID:appID])) {
-    _mutableEvents = [NSMutableArray arrayWithArray:events];
+    //_mutableEvents = [NSMutableArray arrayWithArray:events];
+    _mutableEvents = [NSMutableArray array];
+    for (id toCopy in events) {
+        [_mutableEvents addObject:toCopy];
+    }
+ 
     _numSkipped = numSkipped;
   }
   return self;
@@ -102,14 +111,18 @@
 - (void)addEventsFromAppEventState:(FBSDKAppEventsState *)appEventsState
 {
   NSArray *toAdd = appEventsState->_mutableEvents;
-  NSInteger excess = _mutableEvents.count + toAdd.count - FBSDK_APPEVENTSSTATE_MAX_EVENTS;
+  NSInteger excess = [_mutableEvents count] + [toAdd count] - FBSDK_APPEVENTSSTATE_MAX_EVENTS;
   if (excess > 0) {
     NSInteger range = FBSDK_APPEVENTSSTATE_MAX_EVENTS - _mutableEvents.count;
     toAdd = [toAdd subarrayWithRange:NSMakeRange(0, range)];
     _numSkipped += excess;
   }
 
-  [_mutableEvents addObjectsFromArray:toAdd];
+  //[_mutableEvents addObjectsFromArray:toAdd];
+  for (id toCopy in toAdd) {
+      [_mutableEvents addObject:toCopy];
+  }
+ 
 }
 
 - (void)addEvent:(NSDictionary *)eventDictionary
