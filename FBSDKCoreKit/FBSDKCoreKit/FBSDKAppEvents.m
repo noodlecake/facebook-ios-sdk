@@ -767,14 +767,14 @@ static NSString *g_overrideAppID = nil;
 {
   // When moving from active state, we don't have time to wait for the result of a flush, so
   // just persist events to storage, and we'll process them at the next activation.
-  FBSDKAppEventsState *copy = nil;
-  @synchronized (self) {
-    copy = [_appEventsState copy];
-    _appEventsState = nil;
-  }
-  if (copy) {
-    [FBSDKAppEventsStateManager persistAppEventsData:copy];
-  }
+  //FBSDKAppEventsState *copy = nil;
+  //@synchronized (self) {
+  //  copy = [_appEventsState copy];
+  //  _appEventsState = nil;
+  //}
+  //if (copy) {
+  //  [FBSDKAppEventsStateManager persistAppEventsData:copy];
+  //}
   [FBSDKTimeSpentData suspend];
 }
 

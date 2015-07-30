@@ -318,10 +318,10 @@ static NSString *const FBSDKExpectedChallengeKey = @"expected_login_challenge";
 
   switch (loginBehavior) {
     case FBSDKLoginBehaviorNative:
-      didPerformLogIn = [self performNativeLogInWithParameters:loginParams error:&error];
-      if (didPerformLogIn) {
-        break;
-      }
+      //didPerformLogIn = [self performNativeLogInWithParameters:loginParams error:&error];
+      //if (didPerformLogIn) {
+      //  break;
+      //}
       // else fall through
       loginBehaviorUsed = FBSDKLoginBehaviorBrowser;
 
