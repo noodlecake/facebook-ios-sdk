@@ -18,7 +18,11 @@
 
 #import "FBSDKPaymentObserver.h"
 
+#ifndef AMAZON_MARKETPLACE
 #import <StoreKit/StoreKit.h>
+#else
+#import <StoreKitAmazon/StoreKit.h>
+#endif
 
 #import "FBSDKAppEvents+Internal.h"
 #import "FBSDKDynamicFrameworkLoader.h"

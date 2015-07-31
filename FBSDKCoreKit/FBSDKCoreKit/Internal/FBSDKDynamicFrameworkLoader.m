@@ -22,7 +22,12 @@
 
 #import <Security/Security.h>
 #import <Social/Social.h>
+
+#ifndef AMAZON_MARKETPLACE
 #import <StoreKit/StoreKit.h>
+#else
+#import <StoreKitAmazon/StoreKit.h>
+#endif
 
 #import "FBSDKLogger.h"
 #import "FBSDKSettings.h"
